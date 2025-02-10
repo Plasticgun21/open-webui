@@ -85,6 +85,8 @@
 	import Placeholder from './Placeholder.svelte';
 	import NotificationToast from '../NotificationToast.svelte';
 	import Spinner from '../common/Spinner.svelte';
+	import DownloadMarkdown from "./DownloadMarkdown.svelte";
+	import { chatMessages } from "./stores"; // Pfad prüfen!
 
 	export let chatIdProp = '';
 
@@ -1843,6 +1845,32 @@
 			}
 		}
 	};
+	// Prüfen, ob Nachrichten im Store vorhanden sind
+	console.log("Chat Messages beim Start:", get(chatMessages));
+
+	function addMessage(user, text) {
+		chatMessages.update((messages) => {
+			const updatedMessages = [...messages, { user, content: text }];
+			console.log("Neue Nachricht hinzugefügt:", updatedMessages); // Debug
+			return updatedMessages;
+		});
+	}
+
+	// Funktion zum Umwandeln von Chat-Nachrichten in Markdown
+	const prepareMarkdownChapters = (messages) => {
+		console.log("Umwandlung in Markdown:", messages); // Debugging
+		return messages.map((message, index) => ({
+			title: `Kapitel_${index + 1}`,
+			content: `# Kapitel ${index + 1}\n${message.content}`,
+		}));
+	};
+
+	// Generiere Markdown-Kapitel aus den Nachrichten
+	let chapters = [];
+	$: chapters = prepareMarkdownChapters($chatMessages); // Automatische Aktualisierung bei Änderungen
+
+	// Überprüfe, ob Kapitel erstellt werden
+	console.log("Generierte Kapitel:", chapters);
 </script>
 
 <svelte:head>
@@ -2093,4 +2121,58 @@
 			</div>
 		</div>
 	{/if}
+    <div class="chat-container">
+		<!-- Nachrichten anzeigen -->
+		{#each $chatMessages as message, index}
+		  <div class="message">
+			<div class="user">User: {message.user}</div>
+			<div class="content">{message.content}</div>
+		  </div>
+		{/each}
+	  
+		<!-- Buttons -->
+		<div class="buttons">
+		  <button
+			on:click={() => addMessage("User1", "Das ist eine neue Nachricht von User1!")}
+		  >
+			Nachricht von User1 hinzufügen
+		  </button>
+	  
+		  <button
+			on:click={() => addMessage("User2", "Das ist eine neue Nachricht von User2!")}
+		  >
+			Nachricht von User2 hinzufügen
+		  </button>
+		</div>
+	  
+		<!-- Download-Buttons -->
+		<DownloadMarkdown {chapters} />
+	  </div>
 </div>
+<style>
+	.chat-container {
+	  padding: 1rem;
+	  border: 1px solid #ddd;
+	  border-radius: 8px;
+	  background-color: #f9f9f9;
+	}
+  
+	.message {
+	  margin-bottom: 1rem;
+	  padding: 0.5rem;
+	  background-color: #fff;
+	  border: 1px solid #ddd;
+	  border-radius: 8px;
+	}
+  
+	.user {
+	  font-weight: bold;
+	  color: #333;
+	}
+  
+	.buttons {
+	  margin-top: 1rem;
+	  display: flex;
+	  gap: 1rem;
+	}
+  </style>
