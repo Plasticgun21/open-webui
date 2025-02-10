@@ -1848,16 +1848,30 @@
 	// Prüfen, ob Nachrichten im Store vorhanden sind
 	console.log("Chat Messages beim Start:", get(chatMessages));
 
-	function addMessage(user, text) {
-		chatMessages.update((messages) => {
-			const updatedMessages = [...messages, { user, content: text }];
-			console.log("Neue Nachricht hinzugefügt:", updatedMessages); // Debug
-			return updatedMessages;
-		});
-	}
+	if (!localStorage.getItem("user")) {
+    localStorage.setItem("user", "Gast"); // Standardbenutzer setzen
+}
+const username = localStorage.getItem("user");
+console.log("Benutzername:", username);
+
+function addMessage(user, text) {
+    chatMessages.update((messages) => {
+        const updatedMessages = [...messages, { user, content: text }];
+        
+        console.log("DEBUG: Neue Nachrichten im Store:", updatedMessages);
+
+        setTimeout(() => {
+            localStorage.setItem("chatMessages", JSON.stringify(updatedMessages));
+            console.log("DEBUG: localStorage nach dem Speichern (mit Timeout):", localStorage.getItem("chatMessages"));
+        }, 100);
+        
+        return updatedMessages;
+    });
+}
+
 
 	// Funktion zum Umwandeln von Chat-Nachrichten in Markdown
-	const prepareMarkdownChapters = (messages) => {
+	const prepareMarkdownChapters = (messages: any[]) => {
 		console.log("Umwandlung in Markdown:", messages); // Debugging
 		return messages.map((message, index) => ({
 			title: `Kapitel_${index + 1}`,
@@ -1867,10 +1881,20 @@
 
 	// Generiere Markdown-Kapitel aus den Nachrichten
 	let chapters = [];
-	$: chapters = prepareMarkdownChapters($chatMessages); // Automatische Aktualisierung bei Änderungen
+	$: chapters = prepareMarkdownChapters($chatMessages);
+    console.log("Aktuelle Nachrichten:", $chatMessages);
+    console.log("Generierte Kapitel:", chapters);
+
 
 	// Überprüfe, ob Kapitel erstellt werden
 	console.log("Generierte Kapitel:", chapters);
+
+	window.addEventListener("storage", (event) => {
+    if (event.key === "chatMessages") {
+        console.log("DEBUG: localStorage wurde geändert:", event.newValue);
+    }
+});
+
 </script>
 
 <svelte:head>

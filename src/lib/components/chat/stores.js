@@ -1,15 +1,11 @@
 import { writable } from "svelte/store";
 
-// Lade vorhandene Nachrichten aus dem Local Storage oder initialisiere mit einem leeren Array
-const savedMessages = JSON.parse(localStorage.getItem("chatMessages")) || [];
-console.log("Loaded messages from localStorage:", savedMessages); // Debugging: Anzeigen der geladenen Nachrichten
+// Lade gespeicherte Nachrichten oder setze einen leeren Array
+const storedMessages = JSON.parse(localStorage.getItem("chatMessages") || "[]");
+export const chatMessages = writable(storedMessages);
 
-// Erstelle einen writable Store
-export const chatMessages = writable(savedMessages);
-
-// Speichere Änderungen im Local Storage
+// Speichere Änderungen in localStorage
 chatMessages.subscribe((messages) => {
-    console.log("Aktuelle Nachrichten:", messages); // Debugging: Anzeigen der aktuellen Nachrichten
+    console.log("Speichere in localStorage:", messages);
     localStorage.setItem("chatMessages", JSON.stringify(messages));
-    console.log("Nachrichten in localStorage gespeichert:", localStorage.getItem("chatMessages")); // Debugging: Überprüfen der gespeicherten Nachrichten
 });
