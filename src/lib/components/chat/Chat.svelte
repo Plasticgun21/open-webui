@@ -1851,50 +1851,68 @@
 	if (!localStorage.getItem("user")) {
     localStorage.setItem("user", "Gast"); // Standardbenutzer setzen
 }
-const username = localStorage.getItem("user");
-console.log("Benutzername:", username);
+import JSZip from 'jszip';
+async function handleDownload() {
+        try {
+            // Extract GUID from the current URL
+            const url = window.location.href;
+            const regex = /\/c\/([a-f0-9\-]{36})/;
+            const match = url.match(regex);
+            const guid = match ? match[1] : null;
+            if (!guid) {
+                alert('GUID not found in URL');
+                return;
+            }
 
-function addMessage(user, text) {
-    chatMessages.update((messages) => {
-        const updatedMessages = [...messages, { user, content: text }];
-        
-        console.log("DEBUG: Neue Nachrichten im Store:", updatedMessages);
+            // Fetch the JSON data from the API with authentication
+            const response = await fetch(`http://localhost:8080/api/v1/chats/${guid}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include'
+            });
 
-        setTimeout(() => {
-            localStorage.setItem("chatMessages", JSON.stringify(updatedMessages));
-            console.log("DEBUG: localStorage nach dem Speichern (mit Timeout):", localStorage.getItem("chatMessages"));
-        }, 100);
-        
-        return updatedMessages;
-    });
-}
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
 
+            const data = await response.json();
+            console.log('Fetched data:', data);
 
-	// Funktion zum Umwandeln von Chat-Nachrichten in Markdown
-	const prepareMarkdownChapters = (messages: any[]) => {
-		console.log("Umwandlung in Markdown:", messages); // Debugging
-		return messages.map((message, index) => ({
-			title: `Kapitel_${index + 1}`,
-			content: `# Kapitel ${index + 1}\n${message.content}`,
-		}));
-	};
+            // Extract the latest bot response
+            const messages: any[] = Object.values(data["chat"]["history"]["messages"]);
+            console.log("messages", messages);
+			            // Store every content of assistant
+						const assistantContents = messages
+                .filter((message) => message.role === 'assistant')
+                .map((message) => message.content);
 
-	// Generiere Markdown-Kapitel aus den Nachrichten
-	let chapters = [];
-	$: chapters = prepareMarkdownChapters($chatMessages);
-    console.log("Aktuelle Nachrichten:", $chatMessages);
-    console.log("Generierte Kapitel:", chapters);
+            console.log("Assistant Contents:", assistantContents);
 
+            // Create markdown file(s) from the latest bot response
+            const zip = new JSZip();
+            assistantContents.forEach((content, index) => {
+                const markdownFileName = `bot_response_${index + 1}.md`;
+                const markdownContent = `# Bot Response\n\n${content}`;
+                zip.file(markdownFileName, markdownContent);
+            });
 
-	// Überprüfe, ob Kapitel erstellt werden
-	console.log("Generierte Kapitel:", chapters);
-
-	window.addEventListener("storage", (event) => {
-    if (event.key === "chatMessages") {
-        console.log("DEBUG: localStorage wurde geändert:", event.newValue);
+            // Generate the zip and trigger the download
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = 'bot_responses.zip';
+            link.click();
+        } catch (error) {
+            console.error('Error:', error);
+            if (error instanceof Error) {
+                alert(`An error occurred while processing the request: ${error.message}`);
+            } else {
+                alert('An unknown error occurred.');
+            }
+        }
     }
-});
-
 </script>
 
 <svelte:head>
@@ -2145,32 +2163,8 @@ function addMessage(user, text) {
 			</div>
 		</div>
 	{/if}
-    <div class="chat-container">
-		<!-- Nachrichten anzeigen -->
-		{#each $chatMessages as message, index}
-		  <div class="message">
-			<div class="user">User: {message.user}</div>
-			<div class="content">{message.content}</div>
-		  </div>
-		{/each}
-	  
-		<!-- Buttons -->
-		<div class="buttons">
-		  <button
-			on:click={() => addMessage("User1", "Das ist eine neue Nachricht von User1!")}
-		  >
-			Nachricht von User1 hinzufügen
-		  </button>
-	  
-		  <button
-			on:click={() => addMessage("User2", "Das ist eine neue Nachricht von User2!")}
-		  >
-			Nachricht von User2 hinzufügen
-		  </button>
-		</div>
-	  
-		<!-- Download-Buttons -->
-		<DownloadMarkdown {chapters} />
+	<div style="margin-left: 10px;">
+		<button on:click={handleDownload}>Download Latest Bot Response</button>
 	  </div>
 </div>
 <style>
