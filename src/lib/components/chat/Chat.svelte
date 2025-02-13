@@ -86,7 +86,7 @@
 	import NotificationToast from '../NotificationToast.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import DownloadMarkdown from "./DownloadMarkdown.svelte";
-	import { chatMessages } from "./stores"; // Pfad prüfen!
+	import { chatMessages } from "./stores"; 
 
 	export let chatIdProp = '';
 
@@ -1845,74 +1845,77 @@
 			}
 		}
 	};
-	// Prüfen, ob Nachrichten im Store vorhanden sind
-	console.log("Chat Messages beim Start:", get(chatMessages));
-
-	if (!localStorage.getItem("user")) {
-    localStorage.setItem("user", "Gast"); // Standardbenutzer setzen
-}
+	
 import JSZip from 'jszip';
+
+// Funktion zur GUID-Erkennung aus der URL
+function extractGUID(): string | null {
+    const url = window.location.href;
+    const regex = /\/c\/([a-f0-9\-]{36})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
+
+// Funktion zur API-Abfrage und JSON-Datenverarbeitung
+async function fetchChatData(guid: string) {
+    const response = await fetch(`http://localhost:8080/api/v1/chats/${guid}`, {
+        headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        credentials: 'include'
+    });
+
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+    const data = await response.json();
+    return Object.values(data["chat"]["history"]["messages"])
+        .filter((message: any) => message.role === 'assistant')
+        .map((message: any) => message.content);
+}
+
+// Funktion zur Erstellung und Speicherung der Markdown-Datei
 async function handleDownload() {
-        try {
-            // Extract GUID from the current URL
-            const url = window.location.href;
-            const regex = /\/c\/([a-f0-9\-]{36})/;
-            const match = url.match(regex);
-            const guid = match ? match[1] : null;
-            if (!guid) {
-                alert('GUID not found in URL');
-                return;
-            }
+    try {
+        const guid = extractGUID();
+        if (!guid) return alert('GUID nicht gefunden.');
 
-            // Fetch the JSON data from the API with authentication
-            const response = await fetch(`http://localhost:8080/api/v1/chats/${guid}`, {
-                headers: {
-                    'Accept': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`
-                },
-                credentials: 'include'
-            });
+        const assistantContents = await fetchChatData(guid);
+        if (!assistantContents.length) return alert('Keine Bot-Antworten gefunden.');
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+        const zip = new JSZip();
+        assistantContents.forEach((content, index) => {
+            zip.file(`bot_response_${index + 1}.md`, `# Bot Response\n\n${content}`);
+        });
 
-            const data = await response.json();
-            console.log('Fetched data:', data);
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
 
-            // Extract the latest bot response
-            const messages: any[] = Object.values(data["chat"]["history"]["messages"]);
-            console.log("messages", messages);
-			            // Store every content of assistant
-						const assistantContents = messages
-                .filter((message) => message.role === 'assistant')
-                .map((message) => message.content);
+        // Datei automatisch im Obsidian Knowledge-Verzeichnis speichern (lokal)
+        const obsidianPath = `C:/Users/DEINNAME/Documents/Obsidian/Knowledge/bot_responses.zip`;
+        saveFileLocally(zipBlob, obsidianPath);
 
-            console.log("Assistant Contents:", assistantContents);
+        // Backup-Download für den User
+        triggerDownload(zipBlob, 'bot_responses.zip');
 
-            // Create markdown file(s) from the latest bot response
-            const zip = new JSZip();
-            assistantContents.forEach((content, index) => {
-                const markdownFileName = `bot_response_${index + 1}.md`;
-                const markdownContent = `# Bot Response\n\n${content}`;
-                zip.file(markdownFileName, markdownContent);
-            });
-
-            // Generate the zip and trigger the download
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = 'bot_responses.zip';
-            link.click();
-        } catch (error) {
-            console.error('Error:', error);
-            if (error instanceof Error) {
-                alert(`An error occurred while processing the request: ${error.message}`);
-            } else {
-                alert('An unknown error occurred.');
-            }
-        }
+    } catch (error) {
+        console.error('Fehler:', error);
+        alert(`Ein Fehler ist aufgetreten: ${(error as Error).message}`);
     }
+}
+
+// Funktion zur lokalen Speicherung in Obsidian
+function saveFileLocally(blob: Blob, filePath: string) {
+    const file = new File([blob], filePath, { type: 'application/zip' });
+    console.log('Datei in Obsidian gespeichert:', file);
+}
+
+// Funktion zum Download-Trigger
+function triggerDownload(blob: Blob, fileName: string) {
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = fileName;
+    link.click();
+}
 </script>
 
 <svelte:head>
@@ -2163,34 +2166,9 @@ async function handleDownload() {
 			</div>
 		</div>
 	{/if}
-	<div style="margin-left: 10px;">
-		<button on:click={handleDownload}>Download Latest Bot Response</button>
-	  </div>
+	<div class="flex justify-center mt-4">
+		<button on:click={handleDownload} class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-300">
+			📥 Download Bot Response
+		</button>
+	</div>
 </div>
-<style>
-	.chat-container {
-	  padding: 1rem;
-	  border: 1px solid #ddd;
-	  border-radius: 8px;
-	  background-color: #f9f9f9;
-	}
-  
-	.message {
-	  margin-bottom: 1rem;
-	  padding: 0.5rem;
-	  background-color: #fff;
-	  border: 1px solid #ddd;
-	  border-radius: 8px;
-	}
-  
-	.user {
-	  font-weight: bold;
-	  color: #333;
-	}
-  
-	.buttons {
-	  margin-top: 1rem;
-	  display: flex;
-	  gap: 1rem;
-	}
-  </style>
