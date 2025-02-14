@@ -1845,76 +1845,62 @@
 			}
 		}
 	};
-	
+
 import JSZip from 'jszip';
 
-// Funktion zur GUID-Erkennung aus der URL
-function extractGUID(): string | null {
-    const url = window.location.href;
-    const regex = /\/c\/([a-f0-9\-]{36})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-}
-
-// Funktion zur API-Abfrage und JSON-Datenverarbeitung
-async function fetchChatData(guid: string) {
-    const response = await fetch(`http://localhost:8080/api/v1/chats/${guid}`, {
-        headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        credentials: 'include'
-    });
-
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-    const data = await response.json();
-    return Object.values(data["chat"]["history"]["messages"])
-        .filter((message: any) => message.role === 'assistant')
-        .map((message: any) => message.content);
-}
-
-// Funktion zur Erstellung und Speicherung der Markdown-Datei
 async function handleDownload() {
-    try {
-        const guid = extractGUID();
-        if (!guid) return alert('GUID nicht gefunden.');
+  try {
+	// Extract GUID from URL
+	const match = window.location.href.match(/\/c\/([a-f0-9\-]{36})/);
+	const guid = match ? match[1] : null;
+	if (!guid) {
+	  alert('Fehler: GUID nicht gefunden!');
+	  return;
+	}
 
-        const assistantContents = await fetchChatData(guid);
-        if (!assistantContents.length) return alert('Keine Bot-Antworten gefunden.');
+	// API Request mit Token
+	const response = await fetch(`http://localhost:8080/api/v1/chats/${guid}`, {
+	  headers: {
+		'Accept': 'application/json',
+		'Authorization': `Bearer ${localStorage.getItem('token')}`
+	  },
+	  credentials: 'include'
+	});
 
-        const zip = new JSZip();
-        assistantContents.forEach((content, index) => {
-            zip.file(`bot_response_${index + 1}.md`, `# Bot Response\n\n${content}`);
-        });
+	if (!response.ok) throw new Error(`HTTP Fehler: ${response.status}`);
 
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
+	const data = await response.json();
+	console.log('API Antwort:', data);
 
-        // Datei automatisch im Obsidian Knowledge-Verzeichnis speichern (lokal)
-        const obsidianPath = `C:/Users/DEINNAME/Documents/Obsidian/Knowledge/bot_responses.zip`;
-        saveFileLocally(zipBlob, obsidianPath);
+	// Extrahiere die Bot-Nachrichten
+	const messages = Object.values(data?.chat?.history?.messages || []);
+	const assistantMessages = messages
+	  .filter((msg) => msg.role === 'assistant')
+	  .map((msg) => msg.content);
 
-        // Backup-Download für den User
-        triggerDownload(zipBlob, 'bot_responses.zip');
+	if (assistantMessages.length === 0) {
+	  alert('Keine Bot-Antworten zum Speichern gefunden.');
+	  return;
+	}
 
-    } catch (error) {
-        console.error('Fehler:', error);
-        alert(`Ein Fehler ist aufgetreten: ${(error as Error).message}`);
-    }
-}
+	console.log("Gespeicherte Nachrichten:", assistantMessages);
 
-// Funktion zur lokalen Speicherung in Obsidian
-function saveFileLocally(blob: Blob, filePath: string) {
-    const file = new File([blob], filePath, { type: 'application/zip' });
-    console.log('Datei in Obsidian gespeichert:', file);
-}
+	// Markdown-Dateien in ZIP packen
+	const zip = new JSZip();
+	assistantMessages.forEach((content, index) => {
+	  zip.file(`bot_response_${index + 1}.md`, `# Bot Response\n\n${content}`);
+	});
 
-// Funktion zum Download-Trigger
-function triggerDownload(blob: Blob, fileName: string) {
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = fileName;
-    link.click();
+	// ZIP-Datei erstellen und Download starten
+	const zipBlob = await zip.generateAsync({ type: 'blob' });
+	const link = document.createElement('a');
+	link.href = URL.createObjectURL(zipBlob);
+	link.download = 'bot_responses.zip';
+	link.click();
+  } catch (error) {
+	console.error('Fehler:', error);
+	alert(`Fehler beim Speichern: ${error.message}`);
+  }
 }
 </script>
 
@@ -2167,8 +2153,10 @@ function triggerDownload(blob: Blob, fileName: string) {
 		</div>
 	{/if}
 	<div class="flex justify-center mt-4">
-		<button on:click={handleDownload} class="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 transition duration-300">
-			📥 Download Bot Response
-		</button>
+		<button 
+  on:click={handleDownload} 
+  class="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
+  🔽 Bot-Antworten herunterladen
+</button>
 	</div>
 </div>
